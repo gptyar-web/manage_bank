@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#121c35">
+  <meta name="description" content="دفتر مالی شخصی، ثبت کارت، واریز و برداشت با تقویم شمسی و نگهداری رمزگذاری‌شده اطلاعات">
+  <title>مانا | مدیریت مالی شخصی</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" class="svg-defs" aria-hidden="true">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h4"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-in" viewBox="0 0 24 24"><path d="M12 3v16m-6-6 6 6 6-6M4 21h16"/></symbol>
+    <symbol id="i-out" viewBox="0 0 24 24"><path d="M12 21V5m-6 6 6-6 6 6M4 3h16"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5m5 5H3"/><path d="M12 3h6a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3h-6"/></symbol>
+    <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="7.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 17V4m-5 5 5-5 5 5M4 17v4h16v-4"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7M10 11v6m4-6v6"/></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="15" rx="3"/><path d="M17 13h4M5 6V5a2 2 0 0 1 2-2h11"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-pos" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M9 7h6M9 12h.01M12 12h.01M15 12h.01M9 16h.01M12 16h.01M15 16h.01"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></symbol>
+    <symbol id="i-transfer" viewBox="0 0 24 24"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10 5.2A11 11 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.3 3.8M6.2 6.2C3.6 8.2 2 12 2 12s4 7 10 7a10 10 0 0 0 3.8-.8"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="m12 2 2.3 7.7L22 12l-7.7 2.3L12 22l-2.3-7.7L2 12l7.7-2.3L12 2Z"/></symbol>
+  </svg>
+  <div id="auth" class="auth-layout">
+    <section class="auth-showcase">
+      <div class="brand brand-light"><span class="brand-mark">م</span><div><b>مانا</b><small>همراه هوشمند مالی شما</small></div></div>
+      <div class="showcase-content">
+        <div class="eyebrow">مدیریت مالی، با خیال آسوده</div>
+        <h1>روی پولت<br><em>کنترل کامل</em> داشته باش.</h1>
+        <p>تمام کارت‌ها، واریزها و برداشت‌ها در یک فضای منظم و زیبا؛ همیشه همراهت.</p>
+        <div class="preview-card">
+          <div class="preview-glow"></div>
+          <div class="preview-top"><span>مانا / MANA</span><span class="preview-chip"></span></div>
+          <div class="preview-amount">۱۲٬۸۵۰٬۰۰۰ <small>تومان</small></div>
+          <div class="preview-bottom"><span>•••• &nbsp; •••• &nbsp; •••• &nbsp; ۴۲۸۶</span><span>PERSONAL CARD</span></div>
+        </div>
+        <div class="showcase-features"><span>✦ تقویم شمسی</span><span>✦ موجودی لحظه‌ای</span><span>✦ داده‌های رمزگذاری‌شده</span></div>
+      </div>
+      <div class="showcase-foot">مدیریت ساده، امنیت بیشتر و آرامش خاطر.</div>
+    </section>
+    <section class="auth-panel">
+      <div class="auth-box">
+        <div class="auth-icon"><svg class="icon"><use href="#i-shield"/></svg></div>
+        <p class="auth-kicker">به مانا خوش آمدید</p>
+        <h2 id="auth-title">ورود به حساب شخصی</h2>
+        <p id="auth-subtitle" class="muted">با کد اختصاصی خود وارد شوید و حساب‌هایتان را مدیریت کنید.</p>
+        <div class="tab-switch" role="tablist" aria-label="ورود یا ثبت نام">
+          <button type="button" id="tab-login" class="tab active" data-auth-tab="login">ورود</button>
+          <button type="button" id="tab-register" class="tab" data-auth-tab="register">ایجاد حساب</button>
+        </div>
+        <form id="auth-form" autocomplete="off">
+          <div id="register-fields" class="two-col hidden">
+            <label class="field"><span>نام</span><input id="first-name" name="firstName" type="text" placeholder="مثلاً آرش" maxlength="60"></label>
+            <label class="field"><span>نام خانوادگی</span><input id="last-name" name="lastName" type="text" placeholder="نام خانوادگی" maxlength="60"></label>
+          </div>
+          <label class="field"><span>کد اختصاصی ورود</span><span class="input-icon-wrap"><input id="auth-code" name="code" type="password" autocomplete="new-password" placeholder="کد اختصاصی خود را وارد کنید" minlength="8" maxlength="128" dir="ltr" required><button type="button" class="inline-icon" id="toggle-code" aria-label="نمایش کد"><svg class="icon"><use href="#i-eye"/></svg></button></span></label>
+          <p id="code-hint" class="small-hint hidden">حداقل ۸ نویسه انتخاب کنید. این کد کلید رمزگشایی اطلاعات شماست و قابل بازیابی نیست.</p>
+          <p id="auth-error" class="form-error hidden" role="alert"></p>
+          <button class="btn btn-primary btn-block auth-submit" id="auth-submit" type="submit">ورود به سامانه <svg class="icon"><use href="#i-arrow"/></svg></button>
+        </form>
+        <div class="privacy-note"><svg class="icon"><use href="#i-shield"/></svg><span>اطلاعات فقط به‌صورت رمزگذاری‌شده در همین مرورگر نگهداری می‌شود؛ هیچ داده‌ای به GitHub ارسال نمی‌شود.</span></div>
+      </div>
+      <div class="auth-footer">ساخته‌شده برای مدیریت حساب شخصی شما • نسخه ۱.۰</div>
+    </section>
+  </div>
+  <div id="app" class="app-layout hidden">
+    <aside id="sidebar" class="sidebar">
+      <div class="brand"><span class="brand-mark">م</span><div><b>مانا</b><small>مدیریت مالی شخصی</small></div></div>
+      <div class="side-section-label">منوی اصلی</div>
+      <nav class="side-nav" aria-label="منوی اصلی">
+        <button class="nav-item active" data-section="dashboard"><svg class="icon"><use href="#i-grid"/></svg>داشبورد</button>
+        <button class="nav-item" data-section="cards"><svg class="icon"><use href="#i-card"/></svg>کارت‌های من</button>
+        <button class="nav-item" data-section="activity"><svg class="icon"><use href="#i-activity"/></svg>تراکنش‌ها</button>
+        <button class="nav-item" data-section="backup"><svg class="icon"><use href="#i-shield"/></svg>پشتیبان و امنیت</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="secure-label"><span class="online-dot"></span>اطلاعات رمزگذاری‌شده</div>
+        <div class="side-user"><span class="avatar" id="sidebar-avatar">م</span><div class="side-user-name"><b id="sidebar-name">کاربر مانا</b><small>حساب شخصی</small></div><button class="icon-button logout" data-action="logout" title="خروج"><svg class="icon"><use href="#i-logout"/></svg></button></div>
+      </div>
+    </aside>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="topbar-title"><button class="icon-button mobile-menu" data-action="toggle-menu" aria-label="نمایش منو">☰</button><div><span id="page-crumb" class="top-crumb">پیشخوان / داشبورد</span><h2 id="page-title">داشبورد مالی</h2></div></div>
+        <div class="topbar-actions"><span id="today-label" class="today-label"></span><button type="button" data-action="new-card" class="btn btn-primary"><svg class="icon"><use href="#i-plus"/></svg><span>کارت جدید</span></button></div>
+      </header>
+      <main id="screen" class="screen" tabindex="-1"></main>
+      <footer class="main-footer">مانا • دفتر مدیریت مالی شخصی — بدون اتصال به بانک</footer>
+    </div>
+  </div>
+  <div id="overlay" class="overlay hidden"></div>
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+  <input id="backup-file" type="file" accept=".json,application/json" class="hidden" aria-label="انتخاب فایل پشتیبان">
+</body>
+</html>
