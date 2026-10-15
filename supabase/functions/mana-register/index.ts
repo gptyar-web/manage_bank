@@ -35,9 +35,11 @@ Deno.serve(async (request) => {
   const adminKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if(!url||!adminKey)return respond({error:"تنظیمات سرویس ناقص است."},500);
 
-  const input=new TextEncoder().encode("mana-login-v1:"+code);
-  const digest=await crypto.subtle.digest("SHA-256",input);
-  const hash=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,"0")).join("");
+  const rawKey=await crypto.subtle.importKey("raw",new TextEncoder().encode(code),"PBKDF2",false,["deriveBits"]);
+  const bits=await crypto.subtle.deriveBits({
+    name:"PBKDF2",salt:new TextEncoder().encode("mana-login-alias-v2"),iterations:250000,hash:"SHA-256"
+  },rawKey,256);
+  const hash=Array.from(new Uint8Array(bits),v=>v.toString(16).padStart(2,"0")).join("");
   const email="mana-"+hash+"@users.example.com";
 
   const admin=createClient(url,adminKey,{
