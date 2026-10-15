@@ -1,7 +1,6 @@
+import {cloud} from "./cloud.js";
 "use strict";
 (function () {
-  const STORAGE = "mana_bank_accounts_v1";
-  const ITERATIONS = 240000;
   const MONTHS = ["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
   const WEEKDAYS = ["ش","ی","د","س","چ","پ","ج"];
   const encoder = new TextEncoder(), decoder = new TextDecoder();
@@ -20,8 +19,6 @@
   const newId = () => crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2);
   const bytesToB64 = (bytes) => btoa(Array.from(bytes, (b) => String.fromCharCode(b)).join(""));
   const b64ToBytes = (text) => Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
-  const getAccounts = () => { try { let list = JSON.parse(localStorage.getItem(STORAGE) || "[]"); return Array.isArray(list) ? list : []; } catch { return []; } };
-  const saveAccounts = (list) => localStorage.setItem(STORAGE, JSON.stringify(list));
   const normalizeCard = (s) => toLatin(s).replace(/[\s-]/g, "");
   const parseAmount = (s) => {
     const n = Number(toLatin(s).replace(/[,\u066c٬\s]/g, ""));
@@ -63,26 +60,16 @@
     $("#toast-container").appendChild(el);
     setTimeout(() => el.remove(), 4300);
   }
-  async function deriveKey(code,salt) {
-    const imported = await crypto.subtle.importKey("raw",encoder.encode(code),"PBKDF2",false,["deriveKey"]);
-    return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:ITERATIONS,hash:"SHA-256"},imported,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+  async function deriveBackupKey(code,salt) {
+    const material = await crypto.subtle.importKey("raw",encoder.encode(code),"PBKDF2",false,["deriveKey"]);
+    return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:240000,hash:"SHA-256"},
+      material,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
   }
-  async function decryptAccount(entry,code) {
-    const key = await deriveKey(code,b64ToBytes(entry.salt));
-    const plain = await crypto.subtle.decrypt({name:"AES-GCM",iv:b64ToBytes(entry.iv)},key,b64ToBytes(entry.payload));
-    const vault = JSON.parse(decoder.decode(plain));
-    if (!vault || !Array.isArray(vault.cards)) throw Error("Invalid vault");
-    return {key,vault};
-  }
-  async function persist() {
-    if (!active) return;
-    const all = getAccounts(), index = all.findIndex((x) => x.id === active.id);
-    if (index < 0) throw Error("حساب پیدا نشد");
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encrypted = await crypto.subtle.encrypt({name:"AES-GCM",iv},active.key,encoder.encode(JSON.stringify(active.vault)));
-    all[index].iv = bytesToB64(iv);
-    all[index].payload = bytesToB64(new Uint8Array(encrypted));
-    saveAccounts(all);
+  async function syncData() {
+    if(!active)return;
+    const user=active.user;
+    const vault=await cloud.fetchVault(user);
+    active.vault=vault;
   }
   function setAuthTab(tab) {
     authTab = tab;
@@ -91,56 +78,45 @@
     $("#register-fields").classList.toggle("hidden",tab !== "register");
     $("#code-hint").classList.toggle("hidden",tab !== "register");
     $("#auth-title").textContent = tab === "login" ? "ورود به حساب شخصی" : "ساخت حساب جدید";
-    $("#auth-subtitle").textContent = tab === "login" ? "کد اختصاصی خود را وارد کنید تا اطلاعاتتان باز شود." : "اطلاعات خود را وارد کنید و یک کد اختصاصی قدرتمند بسازید.";
+    $("#auth-subtitle").textContent = tab === "login" ? "کد اختصاصی خود را وارد کنید تا اطلاعاتتان از Supabase بارگذاری شود." : "یک کد اختصاصی قوی بسازید؛ این کد تنها راه ورود شماست.";
     $("#auth-submit").innerHTML = (tab === "login" ? "ورود به سامانه " : "ایجاد حساب و شروع ") + icon("arrow");
     $("#auth-error").classList.add("hidden");
     $("#first-name").required = $("#last-name").required = tab === "register";
     $("#auth-code").value = "";
   }
   function showAuth() {
-    active=null; currentCard=null; section="dashboard"; searchText=""; typeFilter="all";
-    $("#app").classList.add("hidden"); $("#auth").classList.remove("hidden");
-    $("#auth-form").reset(); setAuthTab("login");
+    const logoutPromise=cloud.logout();
+    if(logoutPromise && typeof logoutPromise.catch==="function")logoutPromise.catch(()=>{});
+    active=null;currentCard=null;section="dashboard";searchText="";typeFilter="all";
+    $("#app").classList.add("hidden");$("#auth").classList.remove("hidden");
+    $("#auth-form").reset();setAuthTab("login");
   }
   async function handleAuth(event) {
-    event.preventDefault(); if (busy) return;
-    const code = $("#auth-code").value.trim();
-    const error = $("#auth-error");
-    error.classList.add("hidden");
-    if (code.length < 8) { error.textContent="کد اختصاصی باید حداقل ۸ نویسه باشد.";error.classList.remove("hidden");return; }
-    busy=true; $("#auth-submit").disabled=true;
-    try {
-      if (authTab === "register") {
-        const first = $("#first-name").value.trim(), last = $("#last-name").value.trim();
-        if (!first || !last) throw Error("نام و نام خانوادگی را تکمیل کنید.");
-        const entries = getAccounts();
-        for (const entry of entries) {
-          try { await decryptAccount(entry,code); throw Object.assign(Error("این کد قبلاً ثبت شده است. کد دیگری انتخاب کنید."),{duplicate:true}); }
-          catch(e) { if(e.duplicate) throw e; }
-        }
-        const salt = crypto.getRandomValues(new Uint8Array(16)), key = await deriveKey(code,salt);
-        const vault = {first,last,cards:[],createdAt:new Date().toISOString()};
-        const iv = crypto.getRandomValues(new Uint8Array(12));
-        const encrypted = await crypto.subtle.encrypt({name:"AES-GCM",iv},key,encoder.encode(JSON.stringify(vault)));
-        const id = newId();
-        entries.push({id,salt:bytesToB64(salt),iv:bytesToB64(iv),payload:bytesToB64(new Uint8Array(encrypted)),version:1});
-        saveAccounts(entries);
-        active={id,key,vault}; toast("حساب شخصی شما ساخته شد.");
-      } else {
-        let found = null;
-        for (const entry of getAccounts()) {
-          try { const data = await decryptAccount(entry,code);found={id:entry.id,...data};break; }
-          catch {}
-        }
-        if(!found) throw Error("کد اختصاصی صحیح نیست یا در این مرورگر حسابی با این کد وجود ندارد.");
-        active=found; toast("خوش آمدید!");
+    event.preventDefault();if(busy)return;
+    const code=$("#auth-code").value.trim();
+    const error=$("#auth-error");error.classList.add("hidden");
+    if(code.length<12 || !/[0-9۰-۹٠-٩]/.test(code) || !/[A-Za-z]/.test(code)) {
+      error.textContent="کد اختصاصی باید حداقل ۱۲ نویسه و شامل حروف انگلیسی و عدد باشد.";
+      error.classList.remove("hidden");return;
+    }
+    busy=true;$("#auth-submit").disabled=true;
+    try{
+      if(authTab==="register"){
+        const first=$("#first-name").value.trim(),last=$("#last-name").value.trim();
+        if(!first||!last)throw Error("نام و نام خانوادگی را تکمیل کنید.");
+        await cloud.register(first,last,code);
       }
-      $("#auth").classList.add("hidden"); $("#app").classList.remove("hidden");
-      $("#auth-form").reset(); section="dashboard"; render();
-    } catch(e) {
-      error.textContent=e.message || "خطا در باز کردن حساب. فضای ذخیره‌سازی مرورگر را بررسی کنید.";
+      const user=await cloud.login(code);
+      active={id:user.id,user,vault:{first:user.user_metadata?.first_name||"کاربر",last:user.user_metadata?.last_name||"مانا",cards:[]}};
+      await syncData();
+      $("#auth").classList.add("hidden");$("#app").classList.remove("hidden");
+      $("#auth-form").reset();section="dashboard";render();
+      toast(authTab==="register"?"حساب ابری با موفقیت ساخته شد.":"به حساب ابری مانا خوش آمدید!");
+    }catch(e){
+      if(active){await cloud.logout().catch(()=>{});active=null;}
+      error.textContent=e.message||"خطا در اتصال به Supabase.";
       error.classList.remove("hidden");
-    } finally {busy=false;$("#auth-submit").disabled=false;}
+    }finally{busy=false;$("#auth-submit").disabled=false;}
   }
   function changeSection(name) {
     if(!active) return;
@@ -247,15 +223,20 @@
       '<div class="empty-state"><div class="empty-icon">'+icon("search")+'</div><h3>تراکنشی یافت نشد</h3><p>در صورت نیاز، عبارت جستجو یا فیلتر خود را تغییر دهید.</p></div>');
   }
   function renderBackup() {
-    return sectionHead("امنیت و پشتیبان‌گیری","کنترل داده‌های مالی و نگهداری نسخه پشتیبان")+
-      '<div class="notice">'+icon("info")+'<span><b>نکته مهم:</b> این برنامه یک دفتر مالی شخصی است و به هیچ بانک واقعی متصل نیست. داده‌ها فقط در این مرورگر ذخیره می‌شوند و با پاک‌شدن داده‌های سایت ممکن است از بین بروند؛ حتماً نسخه پشتیبان تهیه کنید.</span></div>'+
+    return sectionHead("امنیت و پشتیبان‌گیری","اطلاعات بانکی شما در فضای اختصاصی حساب Supabase نگهداری می‌شود.")+
+      '<div class="notice">'+icon("info")+'<span><b>توجه:</b> مانا یک دفتر ثبت دستی واریز و برداشت است و به شبکه بانکی واقعی متصل نیست. اطلاعات در Supabase ذخیره می‌شوند و با کد اختصاصی در دستگاه‌های دیگر قابل دسترسی هستند. نسخه پشتیبان رمزگذاری‌شده هم تهیه کنید.</span></div>'+
       '<div class="report-cards">'+
-      '<div class="report-card"><div class="report-icon">'+icon("download")+'</div><h3>دریافت فایل پشتیبان</h3><p>همه حساب‌ها، کارت‌ها و تراکنش‌های رمزگذاری‌شده این مرورگر را در یک فایل JSON ذخیره کنید. کدهای ورود در فایل نوشته نمی‌شوند.</p><button class="btn btn-primary" data-action="export-backup">'+icon("download")+' دانلود پشتیبان امن</button></div>'+
-      '<div class="report-card"><div class="report-icon">'+icon("upload")+'</div><h3>بازیابی اطلاعات</h3><p>فایل پشتیبان قبلی را وارد کنید تا حساب‌های آن به مرورگر فعلی اضافه شوند. برای ورود به هر حساب به کد اختصاصی همان حساب نیاز دارید.</p><button class="btn btn-outline" data-action="import-backup">'+icon("upload")+' انتخاب فایل پشتیبان</button></div></div>'+
-      '<div class="surface surface-pad" style="margin-top:22px"><h3 style="margin-bottom:9px">حریم خصوصی اطلاعات شما</h3><ul class="privacy-list"><li>اطلاعات کارت و تراکنش به سرور یا مخزن GitHub ارسال نمی‌شود.</li><li>محتوای حساب با AES-GCM و کلیدی مشتق‌شده از کد اختصاصی رمزگذاری می‌شود.</li><li>اطلاعات هر حساب از سایر حساب‌ها جداست؛ کد ورود را فراموش نکنید.</li><li>برای استفاده در دستگاه دیگری، فایل پشتیبان را منتقل و در مرورگر مقصد بازیابی کنید.</li><li>پیشنهاد می‌شود از کد طولانی و غیرقابل‌حدس استفاده کنید.</li></ul></div>';
+      '<div class="report-card"><div class="report-icon">'+icon("download")+'</div><h3>دریافت پشتیبان رمزگذاری‌شده</h3><p>نسخه رمزگذاری‌شده کارت‌ها و تراکنش‌ها را دریافت کنید. رمز پشتیبان هنگام دانلود از شما خواسته می‌شود و در GitHub ثبت نمی‌شود.</p><button class="btn btn-primary" data-action="export-backup">'+icon("download")+' دانلود پشتیبان امن</button></div>'+
+      '<div class="report-card"><div class="report-icon">'+icon("upload")+'</div><h3>بازیابی داده‌ها</h3><p>یک فایل پشتیبان نسخه جدید مانا را با رمز آن وارد کنید تا کارت‌های موجود در فایل به حساب ابری فعلی شما افزوده شوند. کارت‌های تکراری نادیده گرفته می‌شوند.</p><button class="btn btn-outline" data-action="import-backup">'+icon("upload")+' انتخاب فایل پشتیبان</button></div></div>'+
+      '<div class="surface surface-pad" style="margin-top:22px"><h3 style="margin-bottom:9px">حریم خصوصی و امنیت</h3><ul class="privacy-list">'+
+      '<li>اطلاعات به‌صورت ابری در Supabase ذخیره می‌شوند و در مخزن GitHub قرار نمی‌گیرند.</li>'+
+      '<li>سیاست‌های RLS هر رکورد را به شناسه کاربر مالک محدود می‌کنند.</li>'+
+      '<li>ورود با Supabase Auth انجام می‌شود؛ کد اختصاصی را قوی و محرمانه نگه دارید.</li>'+
+      '<li>فایل پشتیبان با الگوریتم AES-GCM رمزگذاری می‌شود.</li>'+
+      '<li>اطلاعات سمت سرور به‌صورت رمزگذاری سرتاسری نیستند؛ از وارد کردن CVV2، رمز دوم و PIN خودداری کنید.</li>'+
+      '<li>اگر کد ورود خود را فراموش کنید، بازیابی آن بدون راهکار بازیابی اضافی ممکن نیست.</li></ul></div>';
   }
-
-  function field(label,name,placeholder="",opts="") {
+    function field(label,name,placeholder="",opts="") {
     return '<label class="field"><span>'+label+'</span><input name="'+name+'" placeholder="'+escapeHtml(placeholder)+'" '+opts+'></label>';
   }
   function textArea(label,name,placeholder,required=false) {
@@ -376,59 +357,64 @@
       '<div class="calendar-footer"><button type="button" data-action="calendar-today">رفتن به امروز</button><span>شنبه تا جمعه</span></div></div>';
   }
   async function saveModalForm(form) {
-    if(busy || !active)return;
-    const mode=form.dataset.mode, cardId=form.dataset.id, d=new FormData(form);
+    if(busy||!active)return;
+    const mode=form.dataset.mode,cardId=form.dataset.id,d=new FormData(form);
     const val=(name)=>String(d.get(name)||"").trim();
-    let err="";
-    if(mode==="card") {
-      const name=val("name"), number=normalizeCard(val("number")), opening=parseAmount(val("amount"));
-      if(!name)err="عنوان کارت را وارد کنید.";
+    let err="",record=null,editing=null;
+    if(mode==="card" || mode==="edit-card"){
+      editing=mode==="edit-card"?active.vault.cards.find(c=>c.id===cardId):null;
+      const name=val("name"),number=normalizeCard(val("number")),opening=parseAmount(val("amount"));
+      if(mode==="edit-card"&&!editing)err="کارت پیدا نشد.";
+      else if(!name)err="عنوان کارت الزامی است.";
       else if(!/^\d{16}$/.test(number))err="شماره کارت باید دقیقاً ۱۶ رقم باشد.";
-      else if(!Number.isFinite(opening))err="موجودی اولیه معتبر نیست.";
-      else if(active.vault.cards.some((x)=>x.number===number))err="این شماره کارت قبلاً ثبت شده است.";
-      if(err){toast(err,true);return;}
-      const card={id:newId(),name,number,openingBalance:opening,transactions:[]};
-      active.vault.cards.push(card);currentCard=card.id;section="cards";
-    } else {
-      const card=active.vault.cards.find((x)=>x.id===cardId);
+      else if(!Number.isFinite(opening))err="موجودی اولیه نامعتبر است.";
+      else if(active.vault.cards.some(c=>c.number===number&&c.id!==cardId))err="این شماره کارت قبلاً ثبت شده است.";
+      if(!err)record={name,number,opening};
+    }else{
+      const card=active.vault.cards.find(c=>c.id===cardId);
       if(!card){toast("کارت پیدا نشد.",true);return;}
-      const value=parseAmount(val("amount")), date=toLatin(val("date")), time=toLatin(val("time"));
-      if(!Number.isFinite(value)||value<=0)err="مبلغ باید یک عدد مثبت و معتبر باشد.";
-      else if(!/^\d{4}\/\d{2}\/\d{2}$/.test(date))err="تاریخ نامعتبر است.";
-      else if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))err="ساعت نامعتبر است.";
-      else if(mode!=="deposit"&&value>cardBalance(card))err="موجودی کارت برای این برداشت کافی نیست.";
-      let extra={};
+      const value=parseAmount(val("amount")),date=toLatin(val("date")),time=toLatin(val("time"));
+      if(!Number.isFinite(value)||value<=0)err="مبلغ باید عددی مثبت باشد.";
+      else if(!/^\d{4}\/\d{2}\/\d{2}$/.test(date))err="تاریخ معتبر نیست.";
+      else if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))err="ساعت معتبر نیست.";
+      else if(mode!=="deposit"&&value>cardBalance(card))err="موجودی کارت برای برداشت کافی نیست.";
+      let details={};
       if(mode==="deposit"){
-        extra={senderFirst:val("senderFirst"),senderLast:val("senderLast"),description:val("description")};
-        if(!extra.senderFirst||!extra.senderLast||!extra.description)err="نام فرستنده و توضیحات الزامی است.";
-      }
-      if(mode==="pos"){
-        extra={description:val("description"),purchaseType:val("purchaseType")};
-        if(!extra.description||!extra.purchaseType)err="توضیحات و نوع خرید را تکمیل کنید.";
-      }
-      if(mode==="online"){
-        extra={reason:val("reason"),purchaseType:val("purchaseType")};
-        if(!extra.reason||!extra.purchaseType)err="علت و نوع خرید را تکمیل کنید.";
-      }
-      if(mode==="transfer"){
-        extra={recipientCard:normalizeCard(val("recipientCard")),recipientFirst:val("recipientFirst"),recipientLast:val("recipientLast"),reason:val("reason"),purchaseType:val("purchaseType")};
-        if(!/^\d{16}$/.test(extra.recipientCard))err="شماره کارت گیرنده باید ۱۶ رقم باشد.";
-        else if(!extra.recipientFirst||!extra.recipientLast||!extra.reason||!extra.purchaseType)err="تمام اطلاعات گیرنده، علت و نوع خرید را تکمیل کنید.";
-      }
-      if(!["deposit","pos","online","transfer"].includes(mode))err="نوع تراکنش معتبر نیست.";
-      if(err){toast(err,true);return;}
-      card.transactions.push({id:newId(),type:mode,amount:value,date,time,createdAt:new Date().toISOString(),...extra});
-      currentCard=card.id;section="cards";
+        details={senderFirst:val("senderFirst"),senderLast:val("senderLast"),description:val("description")};
+        if(!details.senderFirst||!details.senderLast||!details.description)err="فرستنده و توضیحات را تکمیل کنید.";
+      }else if(mode==="pos"){
+        details={description:val("description"),purchaseType:val("purchaseType")};
+        if(!details.description||!details.purchaseType)err="توضیحات و نوع خرید را تکمیل کنید.";
+      }else if(mode==="online"){
+        details={reason:val("reason"),purchaseType:val("purchaseType")};
+        if(!details.reason||!details.purchaseType)err="علت و نوع خرید را تکمیل کنید.";
+      }else if(mode==="transfer"){
+        details={recipientCard:normalizeCard(val("recipientCard")),recipientFirst:val("recipientFirst"),recipientLast:val("recipientLast"),reason:val("reason"),purchaseType:val("purchaseType")};
+        if(!/^\d{16}$/.test(details.recipientCard))err="شماره کارت گیرنده باید ۱۶ رقمی باشد.";
+        else if(!details.recipientFirst||!details.recipientLast||!details.reason||!details.purchaseType)err="اطلاعات گیرنده، علت و نوع خرید را تکمیل کنید.";
+      }else err="نوع تراکنش نامعتبر است.";
+      if(!err)record={type:mode,amount:value,date,time,...details};
     }
+    if(err){toast(err,true);return;}
     busy=true;
-    try {
-      await persist();
-      closeModal();render();toast(mode==="card"?"کارت جدید با موفقیت ثبت شد.":"تراکنش ثبت و موجودی کارت به‌روز شد.");
-    } catch(e) {
-      toast("ذخیره اطلاعات انجام نشد؛ فضای مرورگر را بررسی کنید.",true);
-      // Reload the encrypted last-saved state by asking for a fresh login.
-      closeModal();showAuth();
-    } finally {busy=false;}
+    const submit=form.querySelector('[type="submit"]');
+    if(submit)submit.disabled=true;
+    try{
+      if(mode==="card"){
+        const saved=await cloud.createCard(active.id,record.name,record.number,record.opening);
+        currentCard=saved.id;
+      }else if(mode==="edit-card"){
+        await cloud.updateCard(cardId,record.name,record.number,record.opening);
+        currentCard=cardId;
+      }else{
+        await cloud.createTransaction(active.id,cardId,record);
+        currentCard=cardId;
+      }
+      section="cards";await syncData();closeModal();render();
+      toast(mode==="card"?"کارت در Supabase ثبت شد.":mode==="edit-card"?"اطلاعات کارت به‌روزرسانی شد.":"تراکنش در Supabase ذخیره و موجودی به‌روزرسانی شد.");
+    }catch(e){
+      toast("خطا در ثبت اطلاعات: "+(e.message||"ارتباط با سرور"),true);
+    }finally{busy=false;if(submit)submit.disabled=false;}
   }
   function downloadFile(filename,content,type) {
     const blob=new Blob([content],{type});
@@ -436,29 +422,40 @@
     a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),30000);
   }
-  function exportBackup() {
-    const backup={format:"mana-encrypted-backup",version:1,exportedAt:new Date().toISOString(),accounts:getAccounts()};
-    downloadFile("mana-backup-"+todayValue().replace(/\//g,"-")+".json",JSON.stringify(backup,null,2),"application/json");
-    toast("پشتیبان رمزگذاری‌شده دانلود شد.");
+  async function exportBackup() {
+    if(!active)return;
+    const password=prompt("برای رمزگذاری فایل پشتیبان یک رمز قوی وارد کنید (حداقل ۱۲ نویسه):");
+    if(password===null)return;
+    if(password.length<12){toast("رمز پشتیبان باید حداقل ۱۲ نویسه باشد.",true);return;}
+    try{
+      const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+      const key=await deriveBackupKey(password,salt);
+      const payload=encoder.encode(JSON.stringify({version:2,vault:active.vault}));
+      const ciphertext=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},key,payload));
+      const backup={format:"mana-supabase-backup",version:2,salt:bytesToB64(salt),iv:bytesToB64(iv),data:bytesToB64(ciphertext)};
+      downloadFile("mana-secure-backup-"+todayValue().replace(/\//g,"-")+".json",JSON.stringify(backup,null,2),"application/json");
+      toast("فایل پشتیبان رمزگذاری‌شده دانلود شد.");
+    }catch(e){toast("تهیه پشتیبان ناموفق بود.",true);}
   }
   async function importBackup(file) {
     if(!file)return;
-    if(file.size > 10*1024*1024){toast("حجم فایل پشتیبان بیش از حد مجاز است.",true);return;}
-    try {
-      const json=JSON.parse(await file.text());
-      if(json.format!=="mana-encrypted-backup"||json.version!==1||!Array.isArray(json.accounts))throw Error("فرمت فایل پشتیبان معتبر نیست.");
-      const all=getAccounts(),ids=new Set(all.map((x)=>x.id));
-      let count=0;
-      for(const entry of json.accounts){
-        if(typeof entry.id!=="string"||!["salt","iv","payload"].every((key)=>typeof entry[key]==="string"&&/^[A-Za-z0-9+/=]+$/.test(entry[key])))throw Error("ساختار داده‌های پشتیبان نامعتبر است.");
-        if(!ids.has(entry.id)){
-          all.push({id:entry.id,salt:entry.salt,iv:entry.iv,payload:entry.payload,version:1});
-          ids.add(entry.id);count++;
-        }
-      }
-      saveAccounts(all);
-      toast(count ? digits(count)+" حساب جدید بازیابی شد. برای ورود به آن حساب‌ها، ابتدا خارج شوید." : "همه حساب‌های این فایل از قبل در مرورگر موجودند.");
-    } catch(e){toast(e.message||"خواندن فایل پشتیبان ناموفق بود.",true);}
+    if(file.size>10*1024*1024){toast("حجم فایل بیش از ۱۰ مگابایت است.",true);return;}
+    try{
+      const obj=JSON.parse(await file.text());
+      if(obj.format!=="mana-supabase-backup"||obj.version!==2 || !obj.salt || !obj.iv || !obj.data)
+        throw Error("فایل نسخه جدید مانا معتبر نیست.");
+      const pass=prompt("رمز فایل پشتیبان را وارد کنید:");
+      if(pass===null)return;
+      const key=await deriveBackupKey(pass,b64ToBytes(obj.salt));
+      let clear;
+      try{clear=await crypto.subtle.decrypt({name:"AES-GCM",iv:b64ToBytes(obj.iv)},key,b64ToBytes(obj.data));}
+      catch{throw Error("رمز پشتیبان اشتباه است یا فایل آسیب دیده است.");}
+      const backup=JSON.parse(decoder.decode(clear));
+      if(backup.version!==2||!Array.isArray(backup.vault?.cards))throw Error("اطلاعات پشتیبان نامعتبر است.");
+      const result=await cloud.importVault(active.id,backup.vault);
+      await syncData();render();
+      toast(digits(result.cardsCount)+" کارت و "+digits(result.txCount)+" تراکنش در Supabase بازیابی شد.");
+    }catch(e){toast(e.message||"بازیابی اطلاعات ناموفق بود.",true);}
   }
   function cardCsv(card) {
     const csvCell=(v)=>{
