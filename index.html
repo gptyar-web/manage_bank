@@ -8,7 +8,7 @@
   <title>مانا | مدیریت مالی شخصی</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
-  <script src="./app.js" defer></script>
+  <script type="module" src="./app.js"></script>
 </head>
 <body>
   <svg xmlns="http://www.w3.org/2000/svg" class="svg-defs" aria-hidden="true">
@@ -73,12 +73,12 @@
             <label class="field"><span>نام</span><input id="first-name" name="firstName" type="text" placeholder="مثلاً آرش" maxlength="60"></label>
             <label class="field"><span>نام خانوادگی</span><input id="last-name" name="lastName" type="text" placeholder="نام خانوادگی" maxlength="60"></label>
           </div>
-          <label class="field"><span>کد اختصاصی ورود</span><span class="input-icon-wrap"><input id="auth-code" name="code" type="password" autocomplete="new-password" placeholder="کد اختصاصی خود را وارد کنید" minlength="8" maxlength="128" dir="ltr" required><button type="button" class="inline-icon" id="toggle-code" aria-label="نمایش کد"><svg class="icon"><use href="#i-eye"/></svg></button></span></label>
-          <p id="code-hint" class="small-hint hidden">حداقل ۸ نویسه انتخاب کنید. این کد کلید رمزگشایی اطلاعات شماست و قابل بازیابی نیست.</p>
+          <label class="field"><span>کد اختصاصی ورود</span><span class="input-icon-wrap"><input id="auth-code" name="code" type="password" autocomplete="new-password" placeholder="کد اختصاصی خود را وارد کنید" minlength="12" maxlength="128" dir="ltr" required><button type="button" class="inline-icon" id="toggle-code" aria-label="نمایش کد"><svg class="icon"><use href="#i-eye"/></svg></button></span></label>
+          <p id="code-hint" class="small-hint hidden">حداقل ۱۲ نویسه شامل حروف انگلیسی و عدد انتخاب کنید؛ کد اختصاصی کلید ورود شما در همه دستگاه‌هاست.</p>
           <p id="auth-error" class="form-error hidden" role="alert"></p>
           <button class="btn btn-primary btn-block auth-submit" id="auth-submit" type="submit">ورود به سامانه <svg class="icon"><use href="#i-arrow"/></svg></button>
         </form>
-        <div class="privacy-note"><svg class="icon"><use href="#i-shield"/></svg><span>اطلاعات فقط به‌صورت رمزگذاری‌شده در همین مرورگر نگهداری می‌شود؛ هیچ داده‌ای به GitHub ارسال نمی‌شود.</span></div>
+        <div class="privacy-note"><svg class="icon"><use href="#i-shield"/></svg><span>اطلاعات در پایگاه‌داده Supabase و تحت دسترسی حساب شخصی شما نگهداری می‌شود؛ هیچ داده مالی‌ای در مخزن عمومی GitHub ذخیره نمی‌شود.</span></div>
       </div>
       <div class="auth-footer">ساخته‌شده برای مدیریت حساب شخصی شما • نسخه ۱.۰</div>
     </section>
@@ -94,17 +94,17 @@
         <button class="nav-item" data-section="backup"><svg class="icon"><use href="#i-shield"/></svg>پشتیبان و امنیت</button>
       </nav>
       <div class="sidebar-bottom">
-        <div class="secure-label"><span class="online-dot"></span>اطلاعات رمزگذاری‌شده</div>
+        <div class="secure-label"><span class="online-dot"></span>دسترسی محافظت‌شده با RLS</div>
         <div class="side-user"><span class="avatar" id="sidebar-avatar">م</span><div class="side-user-name"><b id="sidebar-name">کاربر مانا</b><small>حساب شخصی</small></div><button class="icon-button logout" data-action="logout" title="خروج"><svg class="icon"><use href="#i-logout"/></svg></button></div>
       </div>
     </aside>
     <div class="main-wrap">
       <header class="topbar">
         <div class="topbar-title"><button class="icon-button mobile-menu" data-action="toggle-menu" aria-label="نمایش منو">☰</button><div><span id="page-crumb" class="top-crumb">پیشخوان / داشبورد</span><h2 id="page-title">داشبورد مالی</h2></div></div>
-        <div class="topbar-actions"><span id="today-label" class="today-label"></span><button type="button" data-action="new-card" class="btn btn-primary"><svg class="icon"><use href="#i-plus"/></svg><span>کارت جدید</span></button></div>
+        <div class="topbar-actions"><span id="today-label" class="today-label"></span><button type="button" class="icon-button" data-action="refresh" aria-label="به‌روزرسانی داده‌ها" title="دریافت آخرین اطلاعات از Supabase"><svg class="icon"><use href="#i-activity"/></svg></button><button type="button" data-action="new-card" class="btn btn-primary"><svg class="icon"><use href="#i-plus"/></svg><span>کارت جدید</span></button></div>
       </header>
       <main id="screen" class="screen" tabindex="-1"></main>
-      <footer class="main-footer">مانا • دفتر مدیریت مالی شخصی — بدون اتصال به بانک</footer>
+      <footer class="main-footer">مانا • اطلاعات در Supabase ذخیره می‌شوند — بدون اتصال به بانک واقعی</footer>
     </div>
   </div>
   <div id="overlay" class="overlay hidden"></div>
