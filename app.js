@@ -253,3 +253,307 @@
       '<div class="report-card"><div class="report-icon">'+icon("upload")+'</div><h3>بازیابی اطلاعات</h3><p>فایل پشتیبان قبلی را وارد کنید تا حساب‌های آن به مرورگر فعلی اضافه شوند. برای ورود به هر حساب به کد اختصاصی همان حساب نیاز دارید.</p><button class="btn btn-outline" data-action="import-backup">'+icon("upload")+' انتخاب فایل پشتیبان</button></div></div>'+
       '<div class="surface surface-pad" style="margin-top:22px"><h3 style="margin-bottom:9px">حریم خصوصی اطلاعات شما</h3><ul class="privacy-list"><li>اطلاعات کارت و تراکنش به سرور یا مخزن GitHub ارسال نمی‌شود.</li><li>محتوای حساب با AES-GCM و کلیدی مشتق‌شده از کد اختصاصی رمزگذاری می‌شود.</li><li>اطلاعات هر حساب از سایر حساب‌ها جداست؛ کد ورود را فراموش نکنید.</li><li>برای استفاده در دستگاه دیگری، فایل پشتیبان را منتقل و در مرورگر مقصد بازیابی کنید.</li><li>پیشنهاد می‌شود از کد طولانی و غیرقابل‌حدس استفاده کنید.</li></ul></div>';
   }
+
+  function field(label,name,placeholder="",opts="") {
+    return '<label class="field"><span>'+label+'</span><input name="'+name+'" placeholder="'+escapeHtml(placeholder)+'" '+opts+'></label>';
+  }
+  function textArea(label,name,placeholder,required=false) {
+    return '<label class="field"><span>'+label+'</span><textarea name="'+name+'" rows="2" maxlength="350" placeholder="'+escapeHtml(placeholder)+'" '+(required?"required":"")+'></textarea></label>';
+  }
+  function amountField(label="مبلغ (تومان)") {
+    return field(label,"amount","مثلاً ۲۵۰۰۰۰", 'type="text" inputmode="numeric" maxlength="17" required dir="ltr"');
+  }
+  function dateFields() {
+    return '<div class="two-col"><label class="field"><span>تاریخ شمسی</span>'+
+      '<input id="date-input" name="date" type="hidden" value="'+todayValue()+'">'+
+      '<button type="button" class="read-only-date" data-action="pick-date">'+icon("calendar")+'<span id="date-label">'+dateDisplay(todayValue())+'</span>'+icon("chevron-left")+'</button></label>'+
+      '<label class="field"><span>ساعت (۲۴ ساعته)</span><input name="time" type="time" value="'+nowTime()+'" required></label></div>';
+  }
+  function purchaseSelect() {
+    const opts=["خوراک و سوپرمارکت","پوشاک","حمل‌ونقل","درمان و سلامت","آموزش","قبوض","خدمات","تفریح","لوازم دیجیتال","سایر"];
+    return '<label class="field"><span>نوع خرید</span><select name="purchaseType" required><option value="">انتخاب نوع خرید</option>'+
+      opts.map((o)=>'<option value="'+o+'">'+o+'</option>').join("")+'</select></label>';
+  }
+  function modal(title,subtitle,ic,body,footer="",formMode="",cardId="") {
+    $("#overlay").innerHTML='<div class="modal" role="dialog" aria-modal="true" aria-label="'+escapeHtml(title)+'">'+
+      '<div class="modal-top"><div class="modal-title"><span class="modal-icon">'+icon(ic)+'</span><div><h3>'+escapeHtml(title)+'</h3><small>'+escapeHtml(subtitle)+'</small></div></div>'+
+      '<button class="icon-button" data-action="close-modal" type="button" aria-label="بستن">'+icon("close")+'</button></div>'+
+      (formMode?'<form id="modal-form" data-mode="'+formMode+'" data-id="'+escapeHtml(cardId)+'">':'')+
+      '<div class="modal-body">'+body+'</div>'+
+      (footer?'<div class="modal-footer">'+footer+'</div>':'')+
+      (formMode?'</form>':'')+'</div>';
+    $("#overlay").classList.remove("hidden");
+    document.body.style.overflow="hidden";
+    const first=$("#overlay input:not([type=hidden])");
+    if(first)setTimeout(()=>first.focus(),80);
+  }
+  const cancelBtn = '<button class="btn btn-outline" type="button" data-action="close-modal">انصراف</button>';
+  const saveBtn = '<button type="submit" class="btn btn-primary">'+icon("check")+' ذخیره اطلاعات</button>';
+  function closeModal() {
+    $("#overlay").classList.add("hidden");
+    $("#overlay").innerHTML="";
+    document.body.style.overflow="";
+    closeCalendar();
+  }
+  function newCardModal() {
+    modal("افزودن کارت جدید","شماره کارت و موجودی اولیه را وارد کنید","card",
+      '<div class="modal-fields">'+
+      field("عنوان کارت","name","مثلاً کارت روزمره یا بانک ملی",'maxlength="50" required')+
+      field("شماره کارت ۱۶ رقمی","number","۶۰۳۷ ۹۹۱۸ ...",'inputmode="numeric" maxlength="22" required dir="ltr"')+
+      amountField("موجودی اولیه (تومان)")+
+      '<p class="form-helper">موجودی اولیه نقطه شروع محاسبات است. اطلاعات کارت به‌صورت رمزگذاری‌شده ذخیره خواهد شد.</p>'+
+      '</div>',cancelBtn+saveBtn,"card");
+  }
+  function depositModal(cardId) {
+    modal("ثبت واریزی","افزایش موجودی کارت پس از ذخیره","in",
+      '<div class="modal-fields">'+amountField()+
+      '<div class="two-col">'+field("نام فرستنده","senderFirst","نام",'maxlength="70" required')+
+      field("نام خانوادگی فرستنده","senderLast","نام خانوادگی",'maxlength="70" required')+'</div>'+
+      textArea("توضیحات","description","توضیحات مربوط به واریز",true)+dateFields()+'</div>',
+      cancelBtn+saveBtn,"deposit",cardId);
+  }
+  function withdrawModal(cardId) {
+    const choice=(type,label,ic)=>'<button class="choice-card" data-action="withdraw-type" data-id="'+escapeHtml(cardId)+'" data-kind="'+type+'">'+icon(ic)+'<span>'+label+'</span></button>';
+    modal("ثبت برداشت","روش برداشت از کارت را انتخاب کنید","out",
+      '<p class="muted" style="font-size:12px;line-height:2">برای درج اطلاعات دقیق‌تر، نوع تراکنش را مشخص کنید.</p>'+
+      '<div class="withdraw-choices">'+choice("pos","برداشت با POS","pos")+choice("online","خرید اینترنتی","globe")+choice("transfer","کارت به کارت","transfer")+'</div>',
+      '<button type="button" class="btn btn-outline" data-action="close-modal">بستن</button>');
+  }
+  function withdrawalForm(kind,cardId) {
+    const title={pos:"برداشت با دستگاه POS",online:"خرید اینترنتی",transfer:"انتقال کارت به کارت"}[kind];
+    let body=amountField();
+    if(kind==="pos") body+=textArea("توضیحات","description","فروشگاه یا توضیحات خرید",true)+purchaseSelect();
+    if(kind==="online")body+=textArea("علت خرید اینترنتی","reason","علت یا شرح خرید",true)+purchaseSelect();
+    if(kind==="transfer")body+=
+      field("شماره کارت گیرنده","recipientCard","شماره کارت ۱۶ رقمی",'inputmode="numeric" maxlength="22" dir="ltr" required')+
+      '<div class="two-col">'+field("نام گیرنده","recipientFirst","نام",'maxlength="70" required')+
+      field("نام خانوادگی گیرنده","recipientLast","نام خانوادگی",'maxlength="70" required')+'</div>'+
+      textArea("علت انتقال","reason","علت کارت به کارت",true)+purchaseSelect();
+    body+=dateFields();
+    modal(title,"تراکنش پس از ذخیره از موجودی کسر می‌شود",kind==="pos"?"pos":kind==="online"?"globe":"transfer",
+      '<div class="modal-fields">'+body+'</div>',cancelBtn+saveBtn,kind,cardId);
+  }
+  function txDetails(tx,card) {
+    const labeled=(title,val)=>'<div style="display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #eff1f7"><span style="color:#8892a7">'+title+'</span><b style="text-align:left;overflow-wrap:anywhere">'+escapeHtml(val||"—")+'</b></div>';
+    const total=tx.type==="deposit"?"+"+amount(tx.amount):"−"+amount(tx.amount);
+    let data=labeled("نوع تراکنش",transactionKind(tx))+
+      labeled("کارت",card.name)+labeled("مبلغ",total+" تومان")+
+      labeled("تاریخ",dateDisplay(tx.date))+labeled("ساعت",digits(tx.time));
+    if(tx.type==="deposit") data+=labeled("فرستنده",tx.senderFirst+" "+tx.senderLast)+labeled("توضیحات",tx.description);
+    if(tx.type==="pos") data+=labeled("نوع خرید",tx.purchaseType)+labeled("توضیحات",tx.description);
+    if(tx.type==="online")data+=labeled("نوع خرید",tx.purchaseType)+labeled("علت",tx.reason);
+    if(tx.type==="transfer")data+=labeled("کارت گیرنده",tx.recipientCard)+labeled("گیرنده",tx.recipientFirst+" "+tx.recipientLast)+labeled("علت",tx.reason)+labeled("نوع خرید",tx.purchaseType);
+    modal("جزئیات تراکنش","اطلاعات ثبت‌شده","activity",'<div style="font-size:12px">'+data+'</div>',
+      '<button class="btn btn-danger" type="button" data-action="delete-tx" data-card="'+card.id+'" data-id="'+tx.id+'">'+icon("trash")+' حذف تراکنش</button>'+
+      '<button class="btn btn-outline" data-action="close-modal">بستن</button>');
+  }
+  function closeCalendar(){const old=$("#date-pop");if(old)old.remove();viewingCalendar=null;}
+  function openCalendar() {
+    const current=toLatin($("#date-input")?.value||todayValue()).split("/").map(Number);
+    viewingCalendar={y:current[0],m:current[1]};
+    redrawCalendar();
+  }
+  function redrawCalendar() {
+    if(!viewingCalendar)return;
+    const {y,m}=viewingCalendar, start=gregorianFromPersian(y,m,1);
+    const offset=(start.getUTCDay()+1)%7;
+    const origin=start.getTime()-offset*86400000, todayStr=todayValue();
+    const selected=toLatin($("#date-input")?.value||"");
+    let days="";
+    for(let n=0;n<42;n++){
+      const p=pParts(new Date(origin+n*86400000)), value=dateValue(p);
+      days+='<button type="button" class="calendar-day'+(p.m!==m?" other":"")+(value===todayStr?" today":"")+(value===selected?" selected":"")+'" data-action="calendar-select" data-date="'+value+'" aria-label="'+digits(p.d)+' '+MONTHS[p.m-1]+'">'+digits(p.d)+'</button>';
+    }
+    let pop=$("#date-pop");
+    if(!pop){pop=document.createElement("div");pop.id="date-pop";pop.className="date-picker-pop";document.body.appendChild(pop);}
+    pop.innerHTML='<div class="calendar" role="dialog" aria-modal="true" aria-label="انتخاب تاریخ شمسی">'+
+      '<div class="calendar-top">'+
+      '<button type="button" class="calendar-nav" data-action="calendar-next" aria-label="ماه بعد">'+icon("chevron-right")+'</button>'+
+      '<div class="calendar-heading"><strong>'+MONTHS[m-1]+' '+digits(y)+'</strong><small>تقویم هجری شمسی</small></div>'+
+      '<button type="button" class="calendar-nav" data-action="calendar-prev" aria-label="ماه قبل">'+icon("chevron-left")+'</button></div>'+
+      '<div class="calendar-grid">'+WEEKDAYS.map((w)=>'<span class="calendar-weekday">'+w+'</span>').join("")+days+'</div>'+
+      '<div class="calendar-footer"><button type="button" data-action="calendar-today">رفتن به امروز</button><span>شنبه تا جمعه</span></div></div>';
+  }
+  async function saveModalForm(form) {
+    if(busy || !active)return;
+    const mode=form.dataset.mode, cardId=form.dataset.id, d=new FormData(form);
+    const val=(name)=>String(d.get(name)||"").trim();
+    let err="";
+    if(mode==="card") {
+      const name=val("name"), number=normalizeCard(val("number")), opening=parseAmount(val("amount"));
+      if(!name)err="عنوان کارت را وارد کنید.";
+      else if(!/^\d{16}$/.test(number))err="شماره کارت باید دقیقاً ۱۶ رقم باشد.";
+      else if(!Number.isFinite(opening))err="موجودی اولیه معتبر نیست.";
+      else if(active.vault.cards.some((x)=>x.number===number))err="این شماره کارت قبلاً ثبت شده است.";
+      if(err){toast(err,true);return;}
+      const card={id:newId(),name,number,openingBalance:opening,transactions:[]};
+      active.vault.cards.push(card);currentCard=card.id;section="cards";
+    } else {
+      const card=active.vault.cards.find((x)=>x.id===cardId);
+      if(!card){toast("کارت پیدا نشد.",true);return;}
+      const value=parseAmount(val("amount")), date=toLatin(val("date")), time=toLatin(val("time"));
+      if(!Number.isFinite(value)||value<=0)err="مبلغ باید یک عدد مثبت و معتبر باشد.";
+      else if(!/^\d{4}\/\d{2}\/\d{2}$/.test(date))err="تاریخ نامعتبر است.";
+      else if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))err="ساعت نامعتبر است.";
+      else if(mode!=="deposit"&&value>cardBalance(card))err="موجودی کارت برای این برداشت کافی نیست.";
+      let extra={};
+      if(mode==="deposit"){
+        extra={senderFirst:val("senderFirst"),senderLast:val("senderLast"),description:val("description")};
+        if(!extra.senderFirst||!extra.senderLast||!extra.description)err="نام فرستنده و توضیحات الزامی است.";
+      }
+      if(mode==="pos"){
+        extra={description:val("description"),purchaseType:val("purchaseType")};
+        if(!extra.description||!extra.purchaseType)err="توضیحات و نوع خرید را تکمیل کنید.";
+      }
+      if(mode==="online"){
+        extra={reason:val("reason"),purchaseType:val("purchaseType")};
+        if(!extra.reason||!extra.purchaseType)err="علت و نوع خرید را تکمیل کنید.";
+      }
+      if(mode==="transfer"){
+        extra={recipientCard:normalizeCard(val("recipientCard")),recipientFirst:val("recipientFirst"),recipientLast:val("recipientLast"),reason:val("reason"),purchaseType:val("purchaseType")};
+        if(!/^\d{16}$/.test(extra.recipientCard))err="شماره کارت گیرنده باید ۱۶ رقم باشد.";
+        else if(!extra.recipientFirst||!extra.recipientLast||!extra.reason||!extra.purchaseType)err="تمام اطلاعات گیرنده، علت و نوع خرید را تکمیل کنید.";
+      }
+      if(!["deposit","pos","online","transfer"].includes(mode))err="نوع تراکنش معتبر نیست.";
+      if(err){toast(err,true);return;}
+      card.transactions.push({id:newId(),type:mode,amount:value,date,time,createdAt:new Date().toISOString(),...extra});
+      currentCard=card.id;section="cards";
+    }
+    busy=true;
+    try {
+      await persist();
+      closeModal();render();toast(mode==="card"?"کارت جدید با موفقیت ثبت شد.":"تراکنش ثبت و موجودی کارت به‌روز شد.");
+    } catch(e) {
+      toast("ذخیره اطلاعات انجام نشد؛ فضای مرورگر را بررسی کنید.",true);
+      // Reload the encrypted last-saved state by asking for a fresh login.
+      closeModal();showAuth();
+    } finally {busy=false;}
+  }
+  function downloadFile(filename,content,type) {
+    const blob=new Blob([content],{type});
+    const url=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+  }
+  function exportBackup() {
+    const backup={format:"mana-encrypted-backup",version:1,exportedAt:new Date().toISOString(),accounts:getAccounts()};
+    downloadFile("mana-backup-"+todayValue().replace(/\//g,"-")+".json",JSON.stringify(backup,null,2),"application/json");
+    toast("پشتیبان رمزگذاری‌شده دانلود شد.");
+  }
+  async function importBackup(file) {
+    if(!file)return;
+    if(file.size > 10*1024*1024){toast("حجم فایل پشتیبان بیش از حد مجاز است.",true);return;}
+    try {
+      const json=JSON.parse(await file.text());
+      if(json.format!=="mana-encrypted-backup"||json.version!==1||!Array.isArray(json.accounts))throw Error("فرمت فایل پشتیبان معتبر نیست.");
+      const all=getAccounts(),ids=new Set(all.map((x)=>x.id));
+      let count=0;
+      for(const entry of json.accounts){
+        if(typeof entry.id!=="string"||!["salt","iv","payload"].every((key)=>typeof entry[key]==="string"&&/^[A-Za-z0-9+/=]+$/.test(entry[key])))throw Error("ساختار داده‌های پشتیبان نامعتبر است.");
+        if(!ids.has(entry.id)){
+          all.push({id:entry.id,salt:entry.salt,iv:entry.iv,payload:entry.payload,version:1});
+          ids.add(entry.id);count++;
+        }
+      }
+      saveAccounts(all);
+      toast(count ? digits(count)+" حساب جدید بازیابی شد. برای ورود به آن حساب‌ها، ابتدا خارج شوید." : "همه حساب‌های این فایل از قبل در مرورگر موجودند.");
+    } catch(e){toast(e.message||"خواندن فایل پشتیبان ناموفق بود.",true);}
+  }
+  function cardCsv(card) {
+    const csvCell=(v)=>{
+      let s=String(v??"");
+      if(/^[=+\-@\t\r]/.test(s))s="'"+s;
+      return '"'+s.replace(/"/g,'""')+'"';
+    };
+    const rows=[["نوع تراکنش","مبلغ (تومان)","تاریخ شمسی","ساعت","توضیحات","نام فرستنده یا گیرنده","شماره کارت گیرنده","نوع خرید"]];
+    txSort(card.transactions).forEach((t)=>rows.push([transactionKind(t),t.amount,t.date,t.time,t.description||t.reason||"",t.type==="deposit"?(t.senderFirst+" "+t.senderLast):(t.type==="transfer"?(t.recipientFirst+" "+t.recipientLast):""),t.recipientCard||"",t.purchaseType||""]));
+    downloadFile("mana-card-"+card.number.slice(-4)+".csv","\ufeff"+rows.map((r)=>r.map(csvCell).join(",")).join("\r\n"),"text/csv;charset=utf-8");
+  }
+  document.addEventListener("click", async (event)=>{
+    const tab=event.target.closest("[data-auth-tab]");
+    if(tab){setAuthTab(tab.dataset.authTab);return;}
+    const nav=event.target.closest("[data-section]");
+    if(nav){changeSection(nav.dataset.section);return;}
+    const button=event.target.closest("[data-action]");
+    if(!button){
+      if(event.target===$("#overlay"))closeModal();
+      if(event.target.id==="date-pop")closeCalendar();
+      return;
+    }
+    const action=button.dataset.action,id=button.dataset.id;
+    const card=()=>active?.vault.cards.find((x)=>x.id===id);
+    switch(action) {
+      case "logout":closeModal();showAuth();toast("از حساب خارج شدید.");break;
+      case "toggle-menu":$("#sidebar").classList.toggle("open");$("#app").classList.toggle("menu-open");break;
+      case "new-card":newCardModal();break;
+      case "open-card":currentCard=id;section="cards";render();window.scrollTo({top:0,behavior:"smooth"});break;
+      case "back-cards":currentCard=null;render();break;
+      case "deposit":if(card())depositModal(id);break;
+      case "withdraw":if(card())withdrawModal(id);break;
+      case "withdraw-type":withdrawalForm(button.dataset.kind,id);break;
+      case "close-modal":closeModal();break;
+      case "pick-date":openCalendar();break;
+      case "calendar-next": viewingCalendar=addMonth(viewingCalendar.y,viewingCalendar.m,1);redrawCalendar();break;
+      case "calendar-prev": viewingCalendar=addMonth(viewingCalendar.y,viewingCalendar.m,-1);redrawCalendar();break;
+      case "calendar-today":{
+        const p=today();$("#date-input").value=dateValue(p);$("#date-label").textContent=dateDisplay(dateValue(p));closeCalendar();break;
+      }
+      case "calendar-select":$("#date-input").value=button.dataset.date;$("#date-label").textContent=dateDisplay(button.dataset.date);closeCalendar();break;
+      case "tx-detail":{
+        const c=active.vault.cards.find((x)=>x.id===button.dataset.card);
+        const tx=c?.transactions.find((t)=>t.id===id);
+        if(c&&tx)txDetails(tx,c);break;
+      }
+      case "delete-tx":{
+        const c=active.vault.cards.find((x)=>x.id===button.dataset.card);
+        if(!c||!confirm("این تراکنش حذف شود؟ موجودی کارت دوباره محاسبه می‌شود."))break;
+        c.transactions=c.transactions.filter((t)=>t.id!==id);
+        try{await persist();closeModal();render();toast("تراکنش حذف و موجودی اصلاح شد.");}
+        catch{closeModal();showAuth();toast("ذخیره تغییرات ناموفق بود.",true);}
+        break;
+      }
+      case "delete-card":{
+        const c=card();
+        if(!c||!confirm("کارت «"+c.name+"» و تمام تراکنش‌هایش برای همیشه حذف شود؟"))break;
+        active.vault.cards=active.vault.cards.filter((x)=>x.id!==id);
+        try{await persist();currentCard=null;render();toast("کارت و تراکنش‌هایش حذف شدند.");}
+        catch{showAuth();toast("ذخیره تغییرات ناموفق بود.",true);}
+        break;
+      }
+      case "csv":if(card())cardCsv(card());break;
+      case "export-backup":exportBackup();break;
+      case "import-backup":$("#backup-file").click();break;
+    }
+  });
+  document.addEventListener("submit",(event)=>{
+    if(event.target.id==="auth-form")return handleAuth(event);
+    if(event.target.id==="modal-form"){event.preventDefault();saveModalForm(event.target);}
+  });
+  document.addEventListener("input",(event)=>{
+    if(event.target.id==="transaction-search"){
+      searchText=event.target.value;
+      const pos=event.target.selectionStart;
+      render();
+      const elem=$("#transaction-search");if(elem){elem.focus();try{elem.setSelectionRange(pos,pos);}catch{}}
+    }
+  });
+  document.addEventListener("change",(event)=>{
+    if(event.target.id==="type-filter"){typeFilter=event.target.value;render();}
+    if(event.target.id==="backup-file"){
+      importBackup(event.target.files?.[0]);
+      event.target.value="";
+    }
+  });
+  $("#toggle-code").addEventListener("click",()=>{
+    const input=$("#auth-code"),reveal=input.type==="password";
+    input.type=reveal?"text":"password";
+    $("#toggle-code").innerHTML=icon(reveal?"eye-off":"eye");
+    $("#toggle-code").setAttribute("aria-label",reveal?"پنهان کردن کد":"نمایش کد");
+  });
+  if(!window.crypto?.subtle) {
+    $("#auth-error").textContent="برای رمزگذاری اطلاعات باید برنامه را در محیط HTTPS یا localhost اجرا کنید.";
+    $("#auth-error").classList.remove("hidden");
+    $("#auth-submit").disabled=true;
+  }
+  setAuthTab("login");
+})();
