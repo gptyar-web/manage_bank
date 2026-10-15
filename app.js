@@ -190,7 +190,8 @@ import {cloud} from "./cloud.js";
       '<div class="card-detail-actions"><h3>مدیریت '+escapeHtml(card.name)+'</h3><p>ثبت سریع تراکنش و محاسبه خودکار موجودی کارت</p>'+
       '<div class="action-buttons"><button class="btn btn-primary" data-action="deposit" data-id="'+card.id+'">'+icon("in")+' ثبت واریزی</button>'+
       '<button class="btn btn-soft" data-action="withdraw" data-id="'+card.id+'">'+icon("out")+' ثبت برداشت</button>'+
-      '<button class="btn btn-outline" data-action="csv" data-id="'+card.id+'">'+icon("download")+' خروجی CSV</button></div>'+
+      '<button class="btn btn-outline" data-action="csv" data-id="'+card.id+'">'+icon("download")+' خروجی CSV</button>'+
+      '<button class="btn btn-outline" data-action="edit-card" data-id="'+card.id+'">'+icon("card")+' ویرایش کارت</button></div>'+
       '<div class="detail-panel"><b>شماره کامل کارت:</b> <span class="full-number">'+escapeHtml(card.number)+'</span></div>'+
       '<div class="detail-stat"><span>موجودی اولیه: <b>'+money(card.openingBalance)+'</b></span><span>تراکنش‌ها: <b>'+digits(card.transactions.length)+'</b></span></div></div></div>'+
       '<div class="block-head"><h3>گردش حساب '+escapeHtml(card.name)+'</h3></div>'+
@@ -285,6 +286,16 @@ import {cloud} from "./cloud.js";
       amountField("موجودی اولیه (تومان)")+
       '<p class="form-helper">موجودی اولیه نقطه شروع محاسبات است. اطلاعات کارت به‌صورت رمزگذاری‌شده ذخیره خواهد شد.</p>'+
       '</div>',cancelBtn+saveBtn,"card");
+  }
+  function editCardModal(card) {
+    if(!card)return;
+    modal("ویرایش کارت","عنوان، شماره کارت و موجودی اولیه را تغییر دهید","card",
+      '<div class="modal-fields">'+
+      '<label class="field"><span>عنوان کارت</span><input name="name" required maxlength="50" value="'+escapeHtml(card.name)+'"></label>'+
+      '<label class="field"><span>شماره کارت ۱۶ رقمی</span><input name="number" required maxlength="22" inputmode="numeric" dir="ltr" value="'+escapeHtml(card.number)+'"></label>'+
+      '<label class="field"><span>موجودی اولیه (تومان)</span><input name="amount" required maxlength="17" inputmode="numeric" dir="ltr" value="'+escapeHtml(card.openingBalance)+'"></label>'+
+      '<p class="form-helper">تغییر موجودی اولیه روی موجودی فعلی اثر می‌گذارد؛ تراکنش‌های قبلی باقی می‌مانند.</p></div>',
+      cancelBtn+saveBtn,"edit-card",card.id);
   }
   function depositModal(cardId) {
     modal("ثبت واریزی","افزایش موجودی کارت پس از ذخیره","in",
@@ -484,6 +495,15 @@ import {cloud} from "./cloud.js";
       case "logout":closeModal();showAuth();toast("از حساب خارج شدید.");break;
       case "toggle-menu":$("#sidebar").classList.toggle("open");$("#app").classList.toggle("menu-open");break;
       case "new-card":newCardModal();break;
+      case "edit-card":if(card())editCardModal(card());break;
+      case "refresh":{
+        if(busy)break;
+        busy=true;
+        try{await syncData();render();toast("اطلاعات از Supabase به‌روزرسانی شد.");}
+        catch(e){toast("دریافت اطلاعات ناموفق بود: "+e.message,true);}
+        finally{busy=false;}
+        break;
+      }
       case "open-card":currentCard=id;section="cards";render();window.scrollTo({top:0,behavior:"smooth"});break;
       case "back-cards":currentCard=null;render();break;
       case "deposit":if(card())depositModal(id);break;
@@ -505,21 +525,23 @@ import {cloud} from "./cloud.js";
       case "delete-tx":{
         const c=active.vault.cards.find((x)=>x.id===button.dataset.card);
         if(!c||!confirm("این تراکنش حذف شود؟ موجودی کارت دوباره محاسبه می‌شود."))break;
-        c.transactions=c.transactions.filter((t)=>t.id!==id);
-        try{await persist();closeModal();render();toast("تراکنش حذف و موجودی اصلاح شد.");}
-        catch{closeModal();showAuth();toast("ذخیره تغییرات ناموفق بود.",true);}
+        try{
+          await cloud.deleteTransaction(id);await syncData();
+          closeModal();render();toast("تراکنش از Supabase حذف شد و موجودی اصلاح شد.");
+        }catch(e){toast("حذف تراکنش انجام نشد: "+e.message,true);}
         break;
       }
       case "delete-card":{
         const c=card();
         if(!c||!confirm("کارت «"+c.name+"» و تمام تراکنش‌هایش برای همیشه حذف شود؟"))break;
-        active.vault.cards=active.vault.cards.filter((x)=>x.id!==id);
-        try{await persist();currentCard=null;render();toast("کارت و تراکنش‌هایش حذف شدند.");}
-        catch{showAuth();toast("ذخیره تغییرات ناموفق بود.",true);}
+        try{
+          await cloud.deleteCard(id);currentCard=null;await syncData();
+          render();toast("کارت و تراکنش‌های آن از Supabase حذف شدند.");
+        }catch(e){toast("حذف کارت انجام نشد: "+e.message,true);}
         break;
       }
       case "csv":if(card())cardCsv(card());break;
-      case "export-backup":exportBackup();break;
+      case "export-backup":await exportBackup();break;
       case "import-backup":$("#backup-file").click();break;
     }
   });
@@ -538,7 +560,7 @@ import {cloud} from "./cloud.js";
   document.addEventListener("change",(event)=>{
     if(event.target.id==="type-filter"){typeFilter=event.target.value;render();}
     if(event.target.id==="backup-file"){
-      importBackup(event.target.files?.[0]);
+      void importBackup(event.target.files?.[0]);
       event.target.value="";
     }
   });
