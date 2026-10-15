@@ -215,6 +215,7 @@
       '<div class="action-buttons"><button class="btn btn-primary" data-action="deposit" data-id="'+card.id+'">'+icon("in")+' ثبت واریزی</button>'+
       '<button class="btn btn-soft" data-action="withdraw" data-id="'+card.id+'">'+icon("out")+' ثبت برداشت</button>'+
       '<button class="btn btn-outline" data-action="csv" data-id="'+card.id+'">'+icon("download")+' خروجی CSV</button></div>'+
+      '<div class="detail-panel"><b>شماره کامل کارت:</b> <span class="full-number">'+escapeHtml(card.number)+'</span></div>'+
       '<div class="detail-stat"><span>موجودی اولیه: <b>'+money(card.openingBalance)+'</b></span><span>تراکنش‌ها: <b>'+digits(card.transactions.length)+'</b></span></div></div></div>'+
       '<div class="block-head"><h3>گردش حساب '+escapeHtml(card.name)+'</h3></div>'+
       (transactions.length ? '<div class="surface"><div class="transaction-list">'+transactions.map(renderTxRow).join("")+'</div></div>' :
