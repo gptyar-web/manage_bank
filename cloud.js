@@ -31,10 +31,15 @@ export const cloud = {
   async register(first,last,code){
     const {data,error}=await supabase.functions.invoke("mana-register",{body:{first,last,code:normalizeCode(code)}});
     if(error){
-      let message="ایجاد حساب در Supabase انجام نشد.";
+      const status=Number(error.context?.status||0);
+      let message=status===404
+        ? "تابع ثبت‌نام mana-register هنوز در Supabase منتشر نشده است. راهنمای انتشار در README مخزن قرار دارد."
+        : status===401 || status===403
+          ? "دسترسی به تابع ثبت‌نام در Supabase رد شد. تنظیمات JWT و کلید عمومی را بررسی کنید."
+          : "ایجاد حساب در Supabase انجام نشد. اتصال اینترنت و وضعیت سرویس را بررسی کنید.";
       try{
         const result=await error.context.json();
-        if(result?.error) message=result.error;
+        if(status!==404 && typeof result?.error==="string")message=result.error;
       }catch{}
       throw new Error(message);
     }
