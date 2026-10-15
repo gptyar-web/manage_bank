@@ -6,8 +6,11 @@ const supabase = createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{
 });
 const normalizeCode = (text)=>String(text).trim().replace(/[۰-۹]/g,c=>String(c.charCodeAt(0)-1776)).replace(/[٠-٩]/g,c=>String(c.charCodeAt(0)-1632));
 async function emailFor(code) {
-  const bytes = new TextEncoder().encode("mana-login-v1:"+normalizeCode(code));
-  const hashed = new Uint8Array(await crypto.subtle.digest("SHA-256",bytes));
+  const source=new TextEncoder().encode(normalizeCode(code));
+  const base=await crypto.subtle.importKey("raw",source,"PBKDF2",false,["deriveBits"]);
+  const hashed=new Uint8Array(await crypto.subtle.deriveBits({
+    name:"PBKDF2",salt:new TextEncoder().encode("mana-login-alias-v2"),iterations:250000,hash:"SHA-256"
+  },base,256));
   return "mana-"+[...hashed].map(b=>b.toString(16).padStart(2,"0")).join("")+"@users.example.com";
 }
 async function requireSuccess(query){
