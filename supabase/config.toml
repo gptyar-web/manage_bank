@@ -1,0 +1,2 @@
+[functions.mana-register]
+verify_jwt = true
